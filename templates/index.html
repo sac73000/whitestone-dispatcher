@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WHITE STONE GEOMATICS Crew Scheduler</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="brand">
+                <div class="logo">W</div>
+                <div>
+                    <h1>White Stone Geomatics</h1>
+                    <p class="subtitle">Crew Scheduler</p>
+                </div>
+            </div>
+            <nav>
+                <button class="nav-btn" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+                <button class="nav-btn active" data-tab="schedule" onclick="switchTab('schedule')">Schedule</button>
+                <button class="nav-btn" data-tab="jobs" onclick="switchTab('jobs')">All Jobs</button>
+                <button class="nav-btn" data-tab="crews" onclick="switchTab('crews')">Crews</button>
+                <button class="nav-btn" data-tab="intake" onclick="switchTab('intake')">Intake</button>
+                <button class="nav-btn" data-tab="marketing" onclick="switchTab('marketing')">Marketing</button>
+                <a href="/logout" class="nav-btn" style="text-decoration:none;color:#9ca3af;margin-left:8px;">Logout</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <!-- DASHBOARD TAB -->
+        <section id="tab-dashboard" class="tab-content">
+            <div class="toolbar">
+                <h2>Dashboard</h2>
+                <div class="toolbar-actions">
+                    <button onclick="openTestInviteModal()" class="btn btn-outline">&#9993; Send Test Invite</button>
+                </div>
+            </div>
+            <div class="dashboard-grid" id="dashboard-cards">
+                <div class="dash-card loading">Loading…</div>
+            </div>
+            <div id="dashboard-charts-section" style="display:none">
+                <h3 class="section-heading" style="margin-top:28px">Marketing ROI</h3>
+                <div class="dash-charts-row">
+                    <div class="chart-card">
+                        <div class="chart-card-title">Revenue Won by Source</div>
+                        <div class="chart-wrap"><canvas id="chart-revenue"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-card-title">Leads by Source</div>
+                        <div class="chart-wrap"><canvas id="chart-leads"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-card-title">Win Rate by Source (%)</div>
+                        <div class="chart-wrap"><canvas id="chart-winrate"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MARKETING TAB -->
+        <section id="tab-marketing" class="tab-content">
+            <div class="toolbar">
+                <h2>Marketing &amp; Lead Sources</h2>
+                <div class="toolbar-actions">
+                    <button onclick="openLeadSourceModal()" class="btn btn-primary">+ Add Source</button>
+                </div>
+            </div>
+
+            <div class="marketing-section">
+                <h3 class="section-heading">Lead Channels</h3>
+                <p class="section-desc">Define where your leads come from and set a monthly budget per channel to track cost-effectiveness.</p>
+                <div id="lead-sources-list"><div class="no-jobs-msg">No lead sources defined yet. Add one to start tracking ROI.</div></div>
+            </div>
+
+            <div class="marketing-section" style="margin-top:28px">
+                <h3 class="section-heading">ROI Summary</h3>
+                <p class="section-desc">Performance breakdown by lead source — leads received, quotes sent, jobs won, and revenue generated.</p>
+                <div id="roi-table-wrap"><div class="no-jobs-msg">Add lead sources and tag leads to see ROI data.</div></div>
+            </div>
+        </section>
+
+        <!-- SCHEDULE TAB -->
+        <section id="tab-schedule" class="tab-content active">
+            <div class="toolbar">
+                <div class="date-nav">
+                    <button onclick="changeDate(-1)" class="btn btn-sm">&larr; Prev</button>
+                    <input type="date" id="schedule-date" value="{{ today }}" onchange="loadSchedule()">
+                    <button onclick="changeDate(1)" class="btn btn-sm">Next &rarr;</button>
+                    <button onclick="goToToday()" class="btn btn-sm btn-outline">Today</button>
+                </div>
+                <div class="toolbar-actions">
+                    <button onclick="openJobModal()" class="btn btn-primary">+ Add Job</button>
+                    <button onclick="sendTomorrow()" class="btn btn-accent">Send Tomorrow's Schedule</button>
+                </div>
+            </div>
+            <div id="schedule-view" class="schedule-grid"></div>
+        </section>
+
+        <!-- ALL JOBS TAB -->
+        <section id="tab-jobs" class="tab-content">
+            <div class="toolbar">
+                <h2>All Job Assignments</h2>
+                <button onclick="openJobModal()" class="btn btn-primary">+ Add Job</button>
+            </div>
+            <div id="jobs-table-container">
+                <table class="data-table" id="jobs-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Project #</th>
+                            <th>Job Name</th>
+                            <th>Crew</th>
+                            <th>Scope</th>
+                            <th>Address</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobs-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- CREWS TAB -->
+        <section id="tab-crews" class="tab-content">
+            <div class="toolbar">
+                <h2>Manage Crews</h2>
+                <button onclick="openCrewModal()" class="btn btn-primary">+ Add Crew</button>
+            </div>
+            <div id="crews-list"></div>
+        </section>
+
+        <!-- INTAKE TAB -->
+        <section id="tab-intake" class="tab-content">
+            <div class="toolbar">
+                <h2>Intake &amp; Quotes</h2>
+                <div class="toolbar-actions">
+                    <a href="/api/leads/export.csv" class="btn btn-outline" title="Export all leads to Excel/CSV">&#8659; Export CSV</a>
+                    <button onclick="openLeadModal()" class="btn btn-primary">+ New Intake</button>
+                </div>
+            </div>
+            <div class="intake-filters">
+                <button class="filter-btn active" data-filter="all" onclick="setLeadFilter('all', this)">All</button>
+                <button class="filter-btn" data-filter="intake" onclick="setLeadFilter('intake', this)">Intake</button>
+                <button class="filter-btn" data-filter="quoted" onclick="setLeadFilter('quoted', this)">Quoted</button>
+                <button class="filter-btn" data-filter="won" onclick="setLeadFilter('won', this)">Won</button>
+                <button class="filter-btn" data-filter="lost" onclick="setLeadFilter('lost', this)">Lost</button>
+            </div>
+            <div id="intake-table-container">
+                <table class="data-table" id="intake-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Client</th>
+                            <th>Phone</th>
+                            <th>Address / County</th>
+                            <th>Scope</th>
+                            <th>Quote</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="intake-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- JOB MODAL -->
+    <div id="job-modal" class="modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2 id="job-modal-title">Add New Job Assignment</h2>
+                <button onclick="closeJobModal()" class="modal-close">&times;</button>
+            </div>
+            <form id="job-form" onsubmit="saveJob(event)">
+                <input type="hidden" id="job-id">
+                <input type="hidden" id="job-from-lead-id">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Job Name *</label>
+                        <input type="text" id="job-name" required placeholder="e.g. Smith Residence Survey">
+                    </div>
+                    <div class="form-group">
+                        <label>Project Number *</label>
+                        <input type="text" id="job-project" required placeholder="e.g. WS-2026-0042">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Job Address *</label>
+                        <input type="text" id="job-address" required placeholder="Full street address">
+                    </div>
+                    <div class="form-group">
+                        <label>Crew Assigned *</label>
+                        <select id="job-crew" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Scope of Work *</label>
+                        <select id="job-scope" required>
+                            <option value="">-- Select --</option>
+                            <option>Boundary Survey</option>
+                            <option>Topographic Survey</option>
+                            <option>Construction Staking</option>
+                            <option>As-Built Survey</option>
+                            <option>Control Survey</option>
+                            <option>Form Survey</option>
+                            <option>Recon</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tools Required</label>
+                        <select id="job-tools" multiple>
+                            <option value="CAT1">CAT1</option>
+                            <option value="CAT2">CAT2</option>
+                            <option value="Focus 35">Focus 35</option>
+                            <option value="Focus 50">Focus 50</option>
+                            <option value="RS3">RS3</option>
+                            <option value="RS4">RS4</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Client Contact Name</label>
+                        <input type="text" id="job-client-name" placeholder="Client name">
+                    </div>
+                    <div class="form-group">
+                        <label>Client Phone Number</label>
+                        <input type="text" id="job-client-phone" placeholder="(555) 123-4567">
+                    </div>
+                    <div class="form-group">
+                        <label>Scheduled Date *</label>
+                        <input type="date" id="job-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Scheduled Start Time *</label>
+                        <input type="time" id="job-time" required value="07:00">
+                    </div>
+                    <div class="form-group">
+                        <label>Estimated Duration (hours)</label>
+                        <input type="number" id="job-duration" min="0.5" max="16" step="0.5" value="4">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Notes / Instructions to Crew</label>
+                        <textarea id="job-notes" rows="3" placeholder="Special instructions, safety notes, equipment needed..."></textarea>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Invite Notes (sent with calendar invite, supports links)</label>
+                        <textarea id="job-invite-notes" rows="3" placeholder="Notes to include in the invite. You can paste links like https://..."></textarea>
+                    </div>
+                </div>
+                <div class="form-check">
+                    <label><input type="checkbox" id="job-send-invite" checked> Send calendar invite to crew</label>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeJobModal()" class="btn btn-outline">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="job-submit-btn">Add Job</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- LEAD / INTAKE MODAL -->
+    <div id="lead-modal" class="modal">
+        <div class="modal-content modal-xl">
+            <div class="modal-header">
+                <h2 id="lead-modal-title">Survey Request Form</h2>
+                <button onclick="closeLeadModal()" class="modal-close">&times;</button>
+            </div>
+            <form id="lead-form" onsubmit="saveLead(event)">
+                <input type="hidden" id="lead-id">
+                <div class="intake-form-body">
+
+                    <!-- SECTION 1: Quick Summary -->
+                    <div class="form-section">
+                        <div class="form-section-title">1. Quick Summary (Internal)</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Lead Source</label>
+                                <select id="lead-source-id">
+                                    <option value="">-- How did they find us? --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Survey Type</label>
+                                <input type="text" id="lead-survey-type" placeholder="e.g. Boundary, Topo...">
+                            </div>
+                            <div class="form-group">
+                                <label>Property Size</label>
+                                <input type="text" id="lead-property-size" placeholder="e.g. 5 acres / 2,000 SF">
+                            </div>
+                            <div class="form-group">
+                                <label>Deadline</label>
+                                <input type="text" id="lead-deadline" placeholder="e.g. ASAP, by April 15">
+                            </div>
+                            <div class="form-group">
+                                <label>Key Notes</label>
+                                <input type="text" id="lead-key-notes" placeholder="Top-level summary notes">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2: Client Information -->
+                    <div class="form-section">
+                        <div class="form-section-title">2. Client Information</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Caller Name *</label>
+                                <input type="text" id="lead-client-name" required placeholder="Person calling in">
+                            </div>
+                            <div class="form-group">
+                                <label>Property Owner (if different)</label>
+                                <input type="text" id="lead-property-owner" placeholder="Owner name">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone</label>
+                                <input type="text" id="lead-client-phone" placeholder="(555) 123-4567">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="lead-client-email" placeholder="client@email.com">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 3: Property Information -->
+                    <div class="form-section">
+                        <div class="form-section-title">3. Property Information</div>
+                        <div class="form-group">
+                            <label>Property Address</label>
+                            <input type="text" id="lead-address" placeholder="Street address or parcel description">
+                        </div>
+                        <div class="form-grid" style="margin-top:10px">
+                            <div class="form-group">
+                                <label>County</label>
+                                <input type="text" id="lead-county" placeholder="e.g. Travis County">
+                            </div>
+                            <div class="form-group">
+                                <label>Approx Size (Acres/SF)</label>
+                                <input type="text" id="lead-approx-size" placeholder="e.g. 2.5 acres">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Property Type</label>
+                            <div class="check-group">
+                                <label class="check-label"><input type="radio" name="prop-type" value="Residential"> Residential</label>
+                                <label class="check-label"><input type="radio" name="prop-type" value="Commercial"> Commercial</label>
+                                <label class="check-label"><input type="radio" name="prop-type" value="Vacant Land"> Vacant Land</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Survey is needed to:</label>
+                            <div class="check-group flex-wrap">
+                                <label class="check-label"><input type="checkbox" class="survey-purpose" value="Build a Fence"> Build a Fence</label>
+                                <label class="check-label"><input type="checkbox" class="survey-purpose" value="Add an Addition"> Add an Addition</label>
+                                <label class="check-label"><input type="checkbox" class="survey-purpose" value="Real Estate Transaction"> Real Estate Transaction</label>
+                                <label class="check-label"><input type="checkbox" class="survey-purpose" value="Engineering Design"> Engineering Design</label>
+                            </div>
+                            <input type="text" id="lead-survey-purpose-other" placeholder="Other purpose..." style="margin-top:6px">
+                        </div>
+                    </div>
+
+                    <!-- SECTION 4: Property Conditions -->
+                    <div class="form-section">
+                        <div class="form-section-title">4. Property Conditions</div>
+                        <div class="form-group">
+                            <div class="check-group">
+                                <label class="check-label"><input type="radio" name="prop-condition" value="Occupied"> Occupied</label>
+                                <label class="check-label"><input type="radio" name="prop-condition" value="Vacant"> Vacant</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Improvements</label>
+                            <div class="check-group flex-wrap">
+                                <label class="check-label"><input type="checkbox" class="improvements" value="House"> House</label>
+                                <label class="check-label"><input type="checkbox" class="improvements" value="Barn"> Barn</label>
+                                <label class="check-label"><input type="checkbox" class="improvements" value="Fence"> Fence</label>
+                                <label class="check-label"><input type="checkbox" class="improvements" value="None"> None</label>
+                            </div>
+                            <input type="text" id="lead-improvements-other" placeholder="Other improvements..." style="margin-top:6px">
+                        </div>
+                        <div class="form-group">
+                            <label>Terrain</label>
+                            <div class="check-group flex-wrap">
+                                <label class="check-label"><input type="checkbox" class="terrain" value="Open"> Open</label>
+                                <label class="check-label"><input type="checkbox" class="terrain" value="Heavily Wooded"> Heavily Wooded</label>
+                                <label class="check-label"><input type="checkbox" class="terrain" value="Developed"> Developed</label>
+                                <label class="check-label"><input type="checkbox" class="terrain" value="Walkable"> Walkable</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Terrain Details</label>
+                            <input type="text" id="lead-terrain-details" placeholder="Additional terrain notes">
+                        </div>
+                    </div>
+
+                    <!-- TWO-COLUMN RIGHT SIDE SECTIONS -->
+                    <div class="form-grid-2col">
+
+                        <!-- SECTION 5: Site Risks -->
+                        <div class="form-section">
+                            <div class="form-section-title">5. Site Risks (Safety)</div>
+                            <div class="check-group flex-wrap">
+                                <label class="check-label"><input type="checkbox" class="site-risks" value="Dogs"> Dogs</label>
+                                <label class="check-label"><input type="checkbox" class="site-risks" value="Livestock"> Livestock</label>
+                            </div>
+                            <input type="text" id="lead-risks-other" placeholder="Other risks..." style="margin-top:8px;width:100%">
+                        </div>
+
+                        <!-- SECTION 6: Access -->
+                        <div class="form-section">
+                            <div class="form-section-title">6. Access</div>
+                            <div class="check-group flex-wrap">
+                                <label class="check-label"><input type="radio" name="access" value="Open"> Open</label>
+                                <label class="check-label"><input type="radio" name="access" value="Gated"> Gated</label>
+                                <label class="check-label"><input type="radio" name="access" value="Locked"> Locked</label>
+                                <label class="check-label"><input type="radio" name="access" value="Special Access"> Special Access</label>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 7: Existing Information -->
+                        <div class="form-section">
+                            <div class="form-section-title">7. Existing Information</div>
+                            <label style="font-size:12px;font-weight:600;color:#6B7280">Documents</label>
+                            <div class="check-group flex-wrap" style="margin-top:4px">
+                                <label class="check-label"><input type="checkbox" class="exist-docs" value="None"> None</label>
+                                <label class="check-label"><input type="checkbox" class="exist-docs" value="Survey"> Survey</label>
+                                <label class="check-label"><input type="checkbox" class="exist-docs" value="Deed"> Deed</label>
+                                <label class="check-label"><input type="checkbox" class="exist-docs" value="Plat"> Plat</label>
+                            </div>
+                            <label style="font-size:12px;font-weight:600;color:#6B7280;margin-top:8px;display:block">Markers</label>
+                            <div class="check-group flex-wrap" style="margin-top:4px">
+                                <label class="check-label"><input type="checkbox" class="exist-markers" value="None"> None</label>
+                                <label class="check-label"><input type="checkbox" class="exist-markers" value="Unknown"> Unknown</label>
+                                <label class="check-label"><input type="checkbox" class="exist-markers" value="Fence"> Fence</label>
+                                <label class="check-label"><input type="checkbox" class="exist-markers" value="Stakes"> Stakes</label>
+                                <label class="check-label"><input type="checkbox" class="exist-markers" value="Pins"> Pins</label>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 8: Type of Survey Need -->
+                        <div class="form-section">
+                            <div class="form-section-title">8. Type of Survey Need</div>
+                            <div class="check-group" style="flex-direction:column;gap:4px">
+                                <label class="check-label"><input type="checkbox" class="survey-types" value="Boundary"> Boundary</label>
+                                <label class="check-label"><input type="checkbox" class="survey-types" value="Topographic"> Topographic</label>
+                                <label class="check-label"><input type="checkbox" class="survey-types" value="Title (1A/1B/ALTA)"> Title (1A/1B/ALTA)</label>
+                                <label class="check-label"><input type="checkbox" class="survey-types" value="Lot Split/Subdividing"> Lot Split/Subdividing</label>
+                                <label class="check-label"><input type="checkbox" class="survey-types" value="Combine Lots"> Combine Lots</label>
+                                <label class="check-label"><input type="checkbox" class="survey-types" value="Construction Staking"> Construction Staking</label>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 9: Staking -->
+                        <div class="form-section">
+                            <div class="form-section-title">9. Staking</div>
+                            <div class="check-group">
+                                <label class="check-label"><input type="radio" name="staking" value="Map Only"> Map Only</label>
+                                <label class="check-label"><input type="radio" name="staking" value="Stakes Required"> Stakes Required</label>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 10: Disputes -->
+                        <div class="form-section">
+                            <div class="form-section-title">10. Disputes / Easements / Encroachments</div>
+                            <div class="check-group">
+                                <label class="check-label"><input type="radio" name="disputes" value="None"> None</label>
+                                <label class="check-label"><input type="radio" name="disputes" value="Yes"> Yes</label>
+                            </div>
+                            <input type="text" id="lead-disputes-details" placeholder="Details..." style="margin-top:8px;width:100%">
+                        </div>
+
+                    </div>
+
+                    <!-- SECTION 11: Timeline -->
+                    <div class="form-section">
+                        <div class="form-section-title">11. Timeline</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Needed By</label>
+                                <input type="text" id="lead-needed-by" placeholder="Date or timeframe">
+                            </div>
+                            <div class="form-group">
+                                <label>Timeline Type</label>
+                                <div class="check-group flex-wrap">
+                                    <label class="check-label"><input type="radio" name="timeline-type" value="Closing Date"> Closing Date</label>
+                                    <label class="check-label"><input type="radio" name="timeline-type" value="Construction Start"> Construction Start</label>
+                                    <label class="check-label"><input type="radio" name="timeline-type" value="Construction Completion"> Construction Completion</label>
+                                </div>
+                                <input type="text" id="lead-timeline-other" placeholder="Other timeline..." style="margin-top:6px">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 12: Deliverables -->
+                    <div class="form-section">
+                        <div class="form-section-title">12. Deliverables</div>
+                        <div class="check-group flex-wrap">
+                            <label class="check-label"><input type="checkbox" class="deliverables" value="PDF"> PDF</label>
+                            <label class="check-label"><input type="checkbox" class="deliverables" value="AutoCAD"> AutoCAD</label>
+                            <label class="check-label"><input type="checkbox" class="deliverables" value="Printed"> Printed</label>
+                            <label class="check-label"><input type="checkbox" class="deliverables" value="Staked"> Staked</label>
+                        </div>
+                        <input type="text" id="lead-deliverables-other" placeholder="Other deliverables..." style="margin-top:6px">
+                    </div>
+
+                    <!-- SECTION 13: Coordination -->
+                    <div class="form-section">
+                        <div class="form-section-title">13. Coordination</div>
+                        <div class="check-group flex-wrap">
+                            <label class="check-label"><input type="checkbox" class="coordination" value="Title Company"> Title Company</label>
+                            <label class="check-label"><input type="checkbox" class="coordination" value="Builder"> Builder</label>
+                            <label class="check-label"><input type="checkbox" class="coordination" value="Engineer"> Engineer</label>
+                            <label class="check-label"><input type="checkbox" class="coordination" value="Lender"> Lender</label>
+                            <label class="check-label"><input type="checkbox" class="coordination" value="None"> None</label>
+                        </div>
+                        <input type="text" id="lead-coordination-details" placeholder="Coordination details / contact info..." style="margin-top:6px">
+                    </div>
+
+                    <!-- SECTION 14: How Did You Hear About Us -->
+                    <div class="form-section">
+                        <div class="form-section-title">14. How Did You Hear About Us</div>
+                        <div class="check-group flex-wrap">
+                            <label class="check-label"><input type="radio" name="referral" value="Google"> Google</label>
+                            <label class="check-label"><input type="radio" name="referral" value="Angi"> Angi</label>
+                            <label class="check-label"><input type="radio" name="referral" value="Yelp"> Yelp</label>
+                            <label class="check-label"><input type="radio" name="referral" value="Referral"> Referral</label>
+                            <label class="check-label"><input type="radio" name="referral" value="Internet"> Internet</label>
+                            <label class="check-label"><input type="radio" name="referral" value="AI"> AI</label>
+                            <label class="check-label"><input type="radio" name="referral" value="Road Sign"> Road Sign</label>
+                            <label class="check-label"><input type="radio" name="referral" value="Vehicle"> Vehicle</label>
+                        </div>
+                        <input type="text" id="lead-referral-other" placeholder="Other source..." style="margin-top:6px">
+                    </div>
+
+                    <!-- SECTION 15: Notes -->
+                    <div class="form-section">
+                        <div class="form-section-title">15. Notes</div>
+                        <div class="form-group">
+                            <textarea id="lead-description" rows="4" placeholder="Additional notes, special instructions, anything else relevant..."></textarea>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer" style="padding:16px 24px;border-top:1px solid var(--border);margin-top:0">
+                    <button type="button" onclick="closeLeadModal()" class="btn btn-outline">Cancel</button>
+                    <button type="button" class="btn btn-outline" id="lead-print-btn" onclick="printLeadSheet()" style="margin-left:auto;margin-right:8px">&#128438; Print Sheet</button>
+                    <button type="submit" class="btn btn-primary" id="lead-submit-btn">Save Intake</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- QUOTE MODAL -->
+    <div id="quote-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Record Quote</h2>
+                <button onclick="closeQuoteModal()" class="modal-close">&times;</button>
+            </div>
+            <form id="quote-form" onsubmit="saveQuote(event)">
+                <input type="hidden" id="quote-lead-id">
+                <div class="form-group">
+                    <label>Quote Amount ($) *</label>
+                    <input type="number" id="quote-amount" required min="0" step="0.01" placeholder="0.00">
+                </div>
+                <div class="form-group">
+                    <label>Quote Date</label>
+                    <input type="date" id="quote-date">
+                </div>
+                <div class="form-group">
+                    <label>Quote Notes</label>
+                    <textarea id="quote-notes" rows="3" placeholder="What's included, assumptions, expiry date, etc."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeQuoteModal()" class="btn btn-outline">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Quote</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- LOST MODAL -->
+    <div id="lost-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Mark as Lost</h2>
+                <button onclick="closeLostModal()" class="modal-close">&times;</button>
+            </div>
+            <form id="lost-form" onsubmit="saveLost(event)">
+                <input type="hidden" id="lost-lead-id">
+                <div class="form-group">
+                    <label>Reason (optional)</label>
+                    <select id="lost-reason-select" onchange="handleLostReasonSelect(this)">
+                        <option value="">-- Select a reason --</option>
+                        <option value="Price too high">Price too high</option>
+                        <option value="Chose competitor">Chose competitor</option>
+                        <option value="Project cancelled">Project cancelled</option>
+                        <option value="No response">No response</option>
+                        <option value="Timing">Timing</option>
+                        <option value="Other">Other (enter below)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Additional Notes</label>
+                    <textarea id="lost-reason" rows="3" placeholder="Any additional details..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeLostModal()" class="btn btn-outline">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Mark Lost</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CREW MODAL -->
+    <div id="crew-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="crew-modal-title">Add New Crew</h2>
+                <button onclick="closeCrewModal()" class="modal-close">&times;</button>
+            </div>
+            <form id="crew-form" onsubmit="saveCrew(event)">
+                <input type="hidden" id="crew-id">
+                <div class="form-group">
+                    <label>Crew Name *</label>
+                    <input type="text" id="crew-name" required placeholder="e.g. Crew Alpha">
+                </div>
+                <div class="form-group">
+                    <label>Crew Email *</label>
+                    <input type="email" id="crew-email" required placeholder="crew@whitestonegeomatics.com">
+                </div>
+                <div class="form-group">
+                    <label>Color</label>
+                    <input type="color" id="crew-color" value="#3B82F6">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeCrewModal()" class="btn btn-outline">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Crew</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- LEAD SOURCE MODAL -->
+    <div id="lead-source-modal" class="modal">
+        <div class="modal-content" style="max-width:460px">
+            <div class="modal-header">
+                <h3 id="ls-modal-title">Add Lead Source</h3>
+                <button class="modal-close" onclick="closeModal('lead-source-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="padding:24px">
+                <input type="hidden" id="ls-id">
+                <div class="form-group">
+                    <label>Source Name *</label>
+                    <input type="text" id="ls-name" placeholder="e.g. Referral, Website, Angi, Yelp…" style="width:100%">
+                </div>
+                <div class="form-group" style="margin-top:14px">
+                    <label>Monthly Budget ($)</label>
+                    <input type="number" id="ls-budget" min="0" step="0.01" value="0" placeholder="0.00" style="width:100%">
+                    <small class="field-hint">Used to calculate cost per lead and cost per acquisition</small>
+                </div>
+                <div class="form-group" style="margin-top:14px">
+                    <label>Chart Color</label>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <input type="color" id="ls-color" value="#3B82F6" style="width:48px;height:36px;border-radius:6px;border:1px solid var(--border);cursor:pointer;padding:2px">
+                        <span style="color:var(--text-light);font-size:13px">Used in ROI charts</span>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:20px">
+                    <button class="btn btn-primary" onclick="saveLeadSource()" style="flex:1">Save</button>
+                    <button class="btn btn-outline" onclick="closeModal('lead-source-modal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEST INVITE MODAL -->
+    <div id="test-invite-modal" class="modal">
+        <div class="modal-content" style="max-width:420px">
+            <div class="modal-header">
+                <h3>Send Test Calendar Invite</h3>
+                <button class="modal-close" onclick="closeModal('test-invite-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:#6b7280;margin-bottom:16px">Sends a sample calendar invite (.ics) via AgentMail to verify email delivery is working.</p>
+                <div class="form-group">
+                    <label>Recipient Email</label>
+                    <input type="email" id="test-invite-email" placeholder="you@example.com" style="width:100%">
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                    <button class="btn btn-primary" onclick="sendTestInvite()" style="flex:1">Send Test Invite</button>
+                    <button class="btn btn-outline" onclick="closeModal('test-invite-modal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
